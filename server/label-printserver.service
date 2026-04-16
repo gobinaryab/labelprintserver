@@ -1,0 +1,16 @@
+[Unit]
+Description=Label Print Server (Flask API)
+After=network.target bluetooth.target rfcomm-ptp300bt.service
+Wants=rfcomm-ptp300bt.service
+
+[Service]
+Type=simple
+User=kalle
+WorkingDirectory=/home/kalle
+ExecStart=/home/kalle/printserver-env/bin/python /home/kalle/print_server.py
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

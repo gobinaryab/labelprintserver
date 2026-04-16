@@ -17,6 +17,9 @@ public class TrayApp : IDisposable
     private bool _p750wAvailable;
     private bool _p300btAvailable;
     private string _diagInfo = "";
+    private PrinterStatus _p750wStatus = PrinterStatus.Offline;
+    private PrinterStatus _p300btStatus = PrinterStatus.Offline;
+    private int _pollCount;
     private PrintWindow? _printWindow;
     private MenuItem? _p750wItem;
     private MenuItem? _p300btItem;
@@ -120,10 +123,12 @@ public class TrayApp : IDisposable
         var printerHeader = new MenuItem { Header = "Printer", IsEnabled = false };
         menu.Items.Add(printerHeader);
 
-        var p750wStatus = _p750wAvailable ? "" : " [offline]";
+        var p750wDetail = !_p750wAvailable ? " [offline]"
+            : _p750wStatus.Online ? $" [{_p750wStatus.Summary}]"
+            : "";
         _p750wItem = new MenuItem
         {
-            Header = $"PT-P750W (USB){p750wStatus}",
+            Header = $"PT-P750W (USB){p750wDetail}",
             IsCheckable = true,
             IsChecked = _settings.DefaultPrinter == "p750w",
             IsEnabled = _p750wAvailable
@@ -131,10 +136,12 @@ public class TrayApp : IDisposable
         _p750wItem.Click += (_, _) => SetPrinter("p750w");
         menu.Items.Add(_p750wItem);
 
-        var p300btStatus = _p300btAvailable ? "" : " [offline]";
+        var p300btDetail = !_p300btAvailable ? " [offline]"
+            : _p300btStatus.Online ? $" [{_p300btStatus.Summary}]"
+            : "";
         _p300btItem = new MenuItem
         {
-            Header = $"PT-P300BT (Bluetooth){p300btStatus}",
+            Header = $"PT-P300BT (Bluetooth){p300btDetail}",
             IsCheckable = true,
             IsChecked = _settings.DefaultPrinter == "p300bt",
             IsEnabled = _p300btAvailable
@@ -205,33 +212,45 @@ public class TrayApp : IDisposable
 
     private async Task PollHealth()
     {
-        var status = await _client.CheckDetailedHealthAsync();
+        var health = await _client.CheckDetailedHealthAsync();
         bool changed = false;
 
-        if (status.ServerOnline != _serverOnline)
+        if (health.ServerOnline != _serverOnline)
         {
-            _serverOnline = status.ServerOnline;
+            _serverOnline = health.ServerOnline;
             SetIcon(_serverOnline ? "green" : "red");
             changed = true;
         }
 
-        if (status.P750wAvailable != _p750wAvailable || status.P300btAvailable != _p300btAvailable)
+        if (health.P750wAvailable != _p750wAvailable || health.P300btAvailable != _p300btAvailable)
         {
-            _p750wAvailable = status.P750wAvailable;
-            _p300btAvailable = status.P300btAvailable;
+            _p750wAvailable = health.P750wAvailable;
+            _p300btAvailable = health.P300btAvailable;
             changed = true;
         }
 
-        if (status.DiagInfo != _diagInfo)
+        if (health.DiagInfo != _diagInfo)
         {
-            _diagInfo = status.DiagInfo;
+            _diagInfo = health.DiagInfo;
+            changed = true;
+        }
+
+        // Fetch detailed printer status every 3rd poll (~30s)
+        _pollCount++;
+        if (_serverOnline && _pollCount % 3 == 1)
+        {
+            var t1 = _client.GetPrinterStatusAsync("p750w");
+            var t2 = _client.GetPrinterStatusAsync("p300bt");
+            await Task.WhenAll(t1, t2);
+            _p750wStatus = t1.Result;
+            _p300btStatus = t2.Result;
             changed = true;
         }
 
         if (changed)
         {
             _trayIcon.ToolTipText = _serverOnline
-                ? $"Label Print Client — Online\nP750W: {(_p750wAvailable ? "ok" : "offline")} | P300BT: {(_p300btAvailable ? "ok" : "offline")}"
+                ? $"Label Print Client — Online\nP750W: {_p750wStatus.Summary}\nP300BT: {_p300btStatus.Summary}"
                 : $"Label Print Client — Offline\n{_diagInfo}";
             BuildContextMenu();
         }

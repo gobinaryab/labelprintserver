@@ -1,0 +1,7 @@
+[Unit]
+Description=Bluetooth reconnect watchdog for PT-P300BT
+After=bluetooth.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/kalle/bt-reconnect.sh

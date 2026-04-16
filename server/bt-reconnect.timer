@@ -1,0 +1,9 @@
+[Unit]
+Description=Check PT-P300BT Bluetooth connection every 30s
+
+[Timer]
+OnBootSec=15
+OnUnitActiveSec=30
+
+[Install]
+WantedBy=timers.target
