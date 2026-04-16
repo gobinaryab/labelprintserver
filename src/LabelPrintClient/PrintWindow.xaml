@@ -1,0 +1,15 @@
+<Window x:Class="LabelPrintClient.PrintWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Print Label"
+        Width="400" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Topmost="True">
+    <StackPanel Margin="16">
+        <TextBlock x:Name="PrinterLabel" Text="Printer: PT-P750W" FontSize="11" Foreground="Gray" Margin="0,0,0,8"/>
+        <TextBox x:Name="LabelText" Height="28" VerticalContentAlignment="Center" MaxLength="200" Margin="0,0,0,10"/>
+        <Button Content="Print" Width="80" Height="28" HorizontalAlignment="Right" IsDefault="True" x:Name="PrintButton" Click="Print_Click" Margin="0,0,0,2"/>
+    </StackPanel>
+</Window>
