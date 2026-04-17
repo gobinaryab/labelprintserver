@@ -10,9 +10,17 @@ import subprocess
 import threading
 import time
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, render_template, request, send_from_directory
 
-app = Flask(__name__)
+# Resolve webapp dir relative to this file so gunicorn's CWD doesn't matter.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_WEBAPP = os.path.join(_HERE, "webapp")
+
+app = Flask(
+    __name__,
+    template_folder=os.path.join(_WEBAPP, "templates"),
+    static_folder=os.path.join(_WEBAPP, "static"),
+)
 
 # ---------------------------------------------------------------------------
 # Logging — console + rotating file
@@ -50,6 +58,23 @@ lock_p300bt = threading.Lock()
 _p300bt_status_cache = None
 _p300bt_status_time = 0
 P300BT_CACHE_TTL = 15  # seconds
+
+
+# ---------------------------------------------------------------------------
+# Mobile webapp
+# ---------------------------------------------------------------------------
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+@app.route("/manifest.webmanifest")
+def manifest():
+    return send_from_directory(
+        app.static_folder, "manifest.webmanifest",
+        mimetype="application/manifest+json",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -282,5 +307,6 @@ def print_p300bt():
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    log.info("Starting Label Print Server on port 8080")
+    # Dev-only fallback. Production runs under gunicorn via systemd.
+    log.info("Starting Flask dev server on port 8080 (development use only)")
     app.run(host="0.0.0.0", port=8080)

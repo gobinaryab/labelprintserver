@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#1f2937">
+
+    <title>Labels</title>
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Labels">
+    <link rel="apple-touch-icon" href="/static/icon-apple-touch.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+
+    <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+    <header>
+        <h1>Label Printer</h1>
+        <div class="status-row">
+            <span class="status" data-printer="p750w">
+                <span class="dot" id="dot-p750w"></span>P750W
+            </span>
+            <span class="status" data-printer="p300bt">
+                <span class="dot" id="dot-p300bt"></span>P300BT
+            </span>
+        </div>
+    </header>
+
+    <main>
+        <div class="printer-select" role="radiogroup" aria-label="Printer">
+            <button type="button" class="seg" data-printer="p750w">PT-P750W</button>
+            <button type="button" class="seg" data-printer="p300bt">PT-P300BT</button>
+        </div>
+
+        <textarea id="text" placeholder="Label text" autocapitalize="sentences" autocorrect="on" spellcheck="true"></textarea>
+
+        <details id="details">
+            <summary>Printer status</summary>
+            <pre id="status-body">Tap to load…</pre>
+        </details>
+
+        <div id="banner" class="banner hidden"></div>
+    </main>
+
+    <footer>
+        <button id="print" class="primary">Print</button>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

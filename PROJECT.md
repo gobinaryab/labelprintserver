@@ -51,12 +51,15 @@ This project turns a Raspberry Pi 4 (`murenprintserver`) into a network print se
   ```
   > The font name is a **required positional argument**. Omitting it causes a "Null image generated" error because the text gets interpreted as the font name.
 
-### Flask API
+### Flask API + Mobile Webapp
 
 - **Port:** 8080
-- **Service:** `label-printserver.service` (systemd)
-- **Venv:** `~/printserver-env/`
+- **WSGI server:** gunicorn (2 sync workers) — the Flask dev server was replaced because it logs a "not for production use" warning and isn't suitable for unattended deployment.
+- **Service:** `label-printserver.service` (systemd, hardened with `ProtectSystem=strict`, `ProtectHome=read-only`, `NoNewPrivileges`)
+- **Venv:** `~/printserver-env/` — must contain `flask` and `gunicorn` (`pip install flask gunicorn`)
 - **Script:** `~/print_server.py`
+- **Webapp files:** `~/webapp/templates/`, `~/webapp/static/` (served by Flask at `/` and `/static/`)
+- **Mobile UI:** `http://murenprintserver:8080/` — iOS users add to Home Screen for a standalone app experience. Shows printer status dots, textarea for label text, printer selector, Print button.
 
 ---
 
@@ -66,13 +69,57 @@ This project turns a Raspberry Pi 4 (`murenprintserver`) into a network print se
 |------|---------|
 | `~/ptouch-print/` | ptouch-print source |
 | `~/PT-P300BT/` | Python Bluetooth printer scripts |
-| `~/print_server.py` | Flask API |
-| `~/printserver-env/` | Flask virtualenv |
+| `~/print_server.py` | Flask API + webapp routes |
+| `~/webapp/` | Mobile webapp templates and static assets |
+| `~/printserver-env/` | Flask + gunicorn virtualenv |
 | `/etc/systemd/system/rfcomm-ptp300bt.service` | Bluetooth RFCOMM persistence |
 | `/etc/systemd/system/label-printserver.service` | Flask API service |
 | `/etc/udev/rules.d/99-ptouch.rules` | USB printer access rule |
 
 ---
+
+## Network Access
+
+The server has **no application-layer authentication** — access control is enforced at the network layer. It is reachable from:
+
+- The home LAN (trusted devices on the local Wi-Fi / Ethernet).
+- The Tailscale overlay network (for remote access from phones on mobile data, etc.).
+
+All other inbound traffic is blocked by `ufw`. One-time setup on the Pi:
+
+```bash
+# Replace 192.168.0.0/16 with your actual home subnet — check with: ip -4 addr
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow in on eth0 to any port 22 proto tcp
+sudo ufw allow in on wlan0 to any port 22 proto tcp
+sudo ufw allow from 192.168.0.0/16 to any port 8080 proto tcp
+sudo ufw allow in on tailscale0
+sudo ufw enable
+sudo ufw status verbose
+```
+
+If the server is ever exposed to the public internet, add TLS (via Caddy or similar) and a real auth layer — the current setup assumes a trusted network.
+
+## Deploying the Webapp Files
+
+When updating the Pi:
+
+```bash
+# From the repo on your workstation:
+scp server/print_server.py kalle@murenprintserver:~/
+scp -r server/webapp kalle@murenprintserver:~/
+scp server/label-printserver.service kalle@murenprintserver:/tmp/
+ssh kalle@murenprintserver 'sudo mv /tmp/label-printserver.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart label-printserver'
+```
+
+First-time install additionally requires:
+
+```bash
+source ~/printserver-env/bin/activate
+pip install gunicorn
+deactivate
+```
 
 ## Troubleshooting
 
@@ -109,6 +156,9 @@ Not `python printlabel.py /dev/rfcomm0 "some text"`.
 ### Phase 1 — Fix & Stabilize (current)
 - [x] Raspberry Pi setup with both printers working
 - [x] Flask API scaffold
+- [x] Replace Flask dev server with gunicorn (production WSGI)
+- [x] Restrict network access to LAN + Tailscale via ufw
+- [x] Mobile-first webapp at `/` with iOS Add-to-Home-Screen support
 - [ ] Fix Flask API to pass font name to `printlabel.py` (e.g., `DejaVuSans`)
 - [ ] Verify both API endpoints work end-to-end
 
@@ -171,9 +221,8 @@ A minimal system tray app for instant label printing.
 - [ ] Document release process (build → publish → package → GitHub Release)
 
 ### Phase 3 — Future Enhancements
-- [ ] Web UI for label design and preview
 - [ ] Label templates (asset tags, cable labels, storage bins, etc.)
-- [ ] QR code / barcode generation
+- [ ] QR code / barcode generation in the webapp
 - [ ] Print history and logging
 - [ ] Docker-compose the Pi services
-- [ ] Reverse proxy and Tailscale/VPN access
+- [ ] TLS via Caddy reverse proxy (if ever exposed beyond LAN + Tailscale)

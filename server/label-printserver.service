@@ -1,5 +1,5 @@
 [Unit]
-Description=Label Print Server (Flask API)
+Description=Label Print Server (Flask API + mobile webapp, gunicorn)
 After=network.target bluetooth.target rfcomm-ptp300bt.service
 Wants=rfcomm-ptp300bt.service
 
@@ -7,10 +7,17 @@ Wants=rfcomm-ptp300bt.service
 Type=simple
 User=kalle
 WorkingDirectory=/home/kalle
-ExecStart=/home/kalle/printserver-env/bin/python /home/kalle/print_server.py
+ExecStart=/home/kalle/printserver-env/bin/gunicorn --workers 2 --bind 0.0.0.0:8080 --access-logfile - --error-logfile - print_server:app
 Restart=on-failure
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/kalle/logs
 
 [Install]
 WantedBy=multi-user.target
