@@ -271,6 +271,36 @@ def print_p750w():
     return jsonify(success=True)
 
 
+def _bt_looks_stale(combined_output: str) -> bool:
+    """Heuristic: did the print attempt fail because the RFCOMM link is dead?"""
+    markers = ("input/output error", "write failed", "errno 5",
+               "connection reset", "transport endpoint")
+    s = combined_output.lower()
+    return any(m in s for m in markers)
+
+
+def _trigger_bt_reconnect() -> None:
+    """Kick the bt-reconnect oneshot service. Requires a sudoers entry so the
+    Flask user (kalle) can start this unit without a password. See PROJECT.md."""
+    try:
+        log.info("Triggering bt-reconnect.service to heal stale RFCOMM")
+        subprocess.run(
+            ["sudo", "-n", "systemctl", "start", "bt-reconnect.service"],
+            capture_output=True, text=True, timeout=15,
+        )
+    except Exception as e:
+        log.warning("bt-reconnect trigger failed: %s", e)
+
+
+def _run_p300bt(text: str) -> subprocess.CompletedProcess:
+    cmd = [P300BT_VENV_PYTHON, P300BT_PRINTLABEL, RFCOMM_DEVICE, P300BT_FONT, text]
+    log.info("Running: %s", " ".join(cmd))
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    log.info("P300BT print exit=%d stdout=%r stderr=%r",
+             result.returncode, result.stdout.strip(), result.stderr.strip())
+    return result
+
+
 @app.route("/api/print/p300bt", methods=["POST"])
 def print_p300bt():
     data = request.get_json(silent=True) or {}
@@ -281,17 +311,28 @@ def print_p300bt():
     log.info("P300BT print request: %r", text)
     with lock_p300bt:
         try:
-            cmd = [P300BT_VENV_PYTHON, P300BT_PRINTLABEL, RFCOMM_DEVICE, P300BT_FONT, text]
-            log.info("Running: %s", " ".join(cmd))
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            log.info("P300BT print exit=%d stdout=%r stderr=%r",
-                     result.returncode, result.stdout.strip(), result.stderr.strip())
+            result = _run_p300bt(text)
+
+            # If the first attempt failed with a Bluetooth I/O signature,
+            # the RFCOMM bind is stale. Trigger the reconnect watchdog and
+            # retry once.
+            combined = (result.stderr or "") + (result.stdout or "")
+            if result.returncode != 0 and _bt_looks_stale(combined):
+                log.warning("P300BT looks stale; attempting reconnect + retry")
+                _trigger_bt_reconnect()
+                time.sleep(3)
+                result = _run_p300bt(text)
         except subprocess.TimeoutExpired:
             log.error("P300BT print timed out for: %r", text)
             return jsonify(error="Print timed out"), 504
         except FileNotFoundError:
             log.error("P300BT: venv or printlabel.py not found")
             return jsonify(error="PT-P300BT venv or printlabel.py not found"), 500
+
+        # Invalidate cached status so next poll re-queries the device.
+        global _p300bt_status_cache, _p300bt_status_time
+        _p300bt_status_cache = None
+        _p300bt_status_time = 0
 
     if result.returncode != 0:
         error_msg = result.stderr.strip() or result.stdout.strip() or f"Exit code {result.returncode}"

@@ -142,6 +142,20 @@ sudo apt install -y pi-bluetooth bluez-firmware
 sudo reboot
 ```
 
+### PT-P300BT prints return "Input/output error" / "write failed"
+
+The printer went to sleep (auto-power-off) so the RFCOMM bind is stale. The server auto-heals on the next print by calling `sudo systemctl start bt-reconnect.service`, but this requires a passwordless sudoers entry for the Flask service user. Run once on the Pi:
+
+```bash
+sudo tee /etc/sudoers.d/label-printserver >/dev/null <<'EOF'
+kalle ALL=(root) NOPASSWD: /bin/systemctl start bt-reconnect.service
+EOF
+sudo chmod 440 /etc/sudoers.d/label-printserver
+sudo visudo -c   # validate
+```
+
+If a print still fails after the retry, wake the printer with its power button and try again — the watchdog needs the device responsive to RF before it can rebind.
+
 ### "Null image generated" from printlabel.py
 You forgot the font name argument. The syntax is:
 ```
