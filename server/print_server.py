@@ -50,13 +50,36 @@ P300BT_STATUS_SCRIPT = os.path.expanduser("~/p300bt_status.py")
 P300BT_FONT = "DejaVuSans"
 RFCOMM_DEVICE = "/dev/rfcomm0"
 
-# Size presets -> per-printer flags. Tune after test prints.
-# P750W: --font-size in px (default = auto-fit tape height).
-#   Max size depends on tape width; ptouch-print errors if too large.
-# P300BT: --fixed-font-size in px (scales font proportionally).
-#   --text-size only scales width, so we avoid it.
-P750W_SIZE_PX = {"s": 20, "m": 30, "l": 45}
-P300BT_SIZE_PX = {"s": 30, "m": 45, "l": 60}
+# Size presets -> per-printer flags. Loaded from print_server_config.json
+# next to this file (override with PRINTSERVER_CONFIG env var). Built-in
+# defaults below are used if the file is missing or malformed.
+#   P750W: --font-size in px (default = auto-fit tape height).
+#     Max size depends on tape width; ptouch-print errors if too large.
+#   P300BT: --font-scale as a percentage of auto-fit. --fixed-font-size
+#     disables centering; --font-scale keeps the auto-layout path which
+#     vertically centers the glyphs on the tape.
+_DEFAULT_P750W_SIZE_PX = {"s": 20, "m": 30, "l": 45}
+_DEFAULT_P300BT_SIZE_PCT = {"s": 50, "m": 70, "l": 85}
+_CONFIG_PATH = os.environ.get(
+    "PRINTSERVER_CONFIG", os.path.join(_HERE, "print_server_config.json")
+)
+
+def _load_sizes():
+    p750w = dict(_DEFAULT_P750W_SIZE_PX)
+    p300bt = dict(_DEFAULT_P300BT_SIZE_PCT)
+    try:
+        with open(_CONFIG_PATH) as f:
+            cfg = json.load(f)
+        p750w.update({k: int(v) for k, v in cfg.get("p750w_size_px", {}).items()})
+        p300bt.update({k: int(v) for k, v in cfg.get("p300bt_size_pct", {}).items()})
+        log.info("Loaded size config from %s", _CONFIG_PATH)
+    except FileNotFoundError:
+        log.info("No config at %s; using built-in size defaults", _CONFIG_PATH)
+    except (json.JSONDecodeError, ValueError, TypeError) as e:
+        log.error("Bad config at %s (%s); using built-in size defaults", _CONFIG_PATH, e)
+    return p750w, p300bt
+
+P750W_SIZE_PX, P300BT_SIZE_PCT = _load_sizes()
 
 # Locks to serialize access per printer
 lock_p750w = threading.Lock()
@@ -309,8 +332,8 @@ def _trigger_bt_reconnect() -> None:
 def _run_p300bt(text: str, size: str = "") -> subprocess.CompletedProcess:
     # Optional flags go before the positional COM_PORT / FONT_NAME / TEXT.
     cmd = [P300BT_VENV_PYTHON, P300BT_PRINTLABEL]
-    if size in P300BT_SIZE_PX:
-        cmd += ["--fixed-font-size", str(P300BT_SIZE_PX[size])]
+    if size in P300BT_SIZE_PCT:
+        cmd += ["--font-scale", str(P300BT_SIZE_PCT[size])]
     cmd += [RFCOMM_DEVICE, P300BT_FONT, text]
     log.info("Running: %s", " ".join(cmd))
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
