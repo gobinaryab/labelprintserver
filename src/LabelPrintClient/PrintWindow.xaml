@@ -10,6 +10,14 @@
     <StackPanel Margin="16">
         <TextBlock x:Name="PrinterLabel" Text="Printer: PT-P750W" FontSize="11" Foreground="Gray" Margin="0,0,0,8"/>
         <TextBox x:Name="LabelText" Height="28" VerticalContentAlignment="Center" MaxLength="200" Margin="0,0,0,10"/>
-        <Button Content="Print" Width="80" Height="28" HorizontalAlignment="Right" IsDefault="True" x:Name="PrintButton" Click="Print_Click" Margin="0,0,0,2"/>
+        <DockPanel LastChildFill="False" Margin="0,0,0,2">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
+                <TextBlock Text="Size:" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="Gray" FontSize="11"/>
+                <RadioButton x:Name="SizeS" GroupName="Size" Content="S" Padding="8,2" Margin="0,0,4,0" MinWidth="32"/>
+                <RadioButton x:Name="SizeM" GroupName="Size" Content="M" Padding="8,2" Margin="0,0,4,0" MinWidth="32"/>
+                <RadioButton x:Name="SizeL" GroupName="Size" Content="L" Padding="8,2" MinWidth="32"/>
+            </StackPanel>
+            <Button Content="Print" Width="80" Height="28" DockPanel.Dock="Right" IsDefault="True" x:Name="PrintButton" Click="Print_Click"/>
+        </DockPanel>
     </StackPanel>
 </Window>

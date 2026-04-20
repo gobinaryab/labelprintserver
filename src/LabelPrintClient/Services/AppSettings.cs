@@ -13,6 +13,7 @@ public class AppSettings
 
     public string ServerAddress { get; set; } = "";
     public string DefaultPrinter { get; set; } = "p750w";
+    public string DefaultSize { get; set; } = "m";
     public bool RunAtStartup { get; set; } = true;
 
     public static AppSettings Load()

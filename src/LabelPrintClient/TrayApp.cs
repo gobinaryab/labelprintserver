@@ -96,22 +96,31 @@ public class TrayApp : IDisposable
         }
 
         var displayName = _settings.DefaultPrinter == "p300bt" ? "PT-P300BT" : "PT-P750W";
-        _printWindow = new PrintWindow(displayName);
+        _printWindow = new PrintWindow(displayName, _settings.DefaultSize);
         _printWindow.Closed += (_, _) =>
         {
             var text = _printWindow.PrintText;
+            var size = _printWindow.SelectedSize;
             _printWindow = null;
 
             if (!string.IsNullOrEmpty(text))
-                _ = SendPrintJobAsync(_settings.DefaultPrinter, text);
+            {
+                if (size != _settings.DefaultSize)
+                {
+                    _settings.DefaultSize = size;
+                    _settings.Save();
+                    BuildContextMenu();
+                }
+                _ = SendPrintJobAsync(_settings.DefaultPrinter, text, size);
+            }
         };
         _printWindow.Show();
         _printWindow.Activate();
     }
 
-    private async Task SendPrintJobAsync(string printer, string text)
+    private async Task SendPrintJobAsync(string printer, string text, string size)
     {
-        var result = await _client.PrintAsync(printer, text);
+        var result = await _client.PrintAsync(printer, text, size);
         if (!result.Success)
             ShowError($"Print failed: {result.Error}");
     }
@@ -148,6 +157,23 @@ public class TrayApp : IDisposable
         };
         _p300btItem.Click += (_, _) => SetPrinter("p300bt");
         menu.Items.Add(_p300btItem);
+
+        menu.Items.Add(new Separator());
+
+        var sizeHeader = new MenuItem { Header = "Size", IsEnabled = false };
+        menu.Items.Add(sizeHeader);
+
+        foreach (var (code, label) in new[] { ("s", "Small"), ("m", "Medium"), ("l", "Large") })
+        {
+            var item = new MenuItem
+            {
+                Header = label,
+                IsCheckable = true,
+                IsChecked = _settings.DefaultSize == code
+            };
+            item.Click += (_, _) => SetSize(code);
+            menu.Items.Add(item);
+        }
 
         menu.Items.Add(new Separator());
 
@@ -206,6 +232,13 @@ public class TrayApp : IDisposable
     private void SetPrinter(string printer)
     {
         _settings.DefaultPrinter = printer;
+        _settings.Save();
+        BuildContextMenu();
+    }
+
+    private void SetSize(string size)
+    {
+        _settings.DefaultSize = size;
         _settings.Save();
         BuildContextMenu();
     }

@@ -79,14 +79,14 @@ public class PrintServerClient : IDisposable
         }
     }
 
-    public async Task<PrintResult> PrintAsync(string printer, string text)
+    public async Task<PrintResult> PrintAsync(string printer, string text, string size)
     {
         if (string.IsNullOrEmpty(_baseUrl))
             return new PrintResult(false, "Server address not configured.");
 
         try
         {
-            var payload = JsonSerializer.Serialize(new { text });
+            var payload = JsonSerializer.Serialize(new { text, size });
             var content = new StringContent(payload, Encoding.UTF8, "application/json");
             var response = await _http.PostAsync($"{_baseUrl}/api/print/{printer}", content);
 
