@@ -50,6 +50,14 @@ P300BT_STATUS_SCRIPT = os.path.expanduser("~/p300bt_status.py")
 P300BT_FONT = "DejaVuSans"
 RFCOMM_DEVICE = "/dev/rfcomm0"
 
+# Size presets -> per-printer flags. Tune after test prints.
+# P750W: --font-size in px (default = auto-fit tape height).
+#   Max size depends on tape width; ptouch-print errors if too large.
+# P300BT: --fixed-font-size in px (scales font proportionally).
+#   --text-size only scales width, so we avoid it.
+P750W_SIZE_PX = {"s": 20, "m": 30, "l": 45}
+P300BT_SIZE_PX = {"s": 30, "m": 45, "l": 60}
+
 # Locks to serialize access per printer
 lock_p750w = threading.Lock()
 lock_p300bt = threading.Lock()
@@ -244,13 +252,17 @@ def printer_status(printer):
 def print_p750w():
     data = request.get_json(silent=True) or {}
     text = data.get("text", "").strip()
+    size = (data.get("size") or "").lower()
     if not text:
         return jsonify(error="No text provided"), 400
 
-    log.info("P750W print request: %r", text)
+    log.info("P750W print request: %r (size=%s)", text, size or "auto")
     with lock_p750w:
         try:
-            cmd = [PTOUCH_PRINT, "--text", text]
+            cmd = [PTOUCH_PRINT]
+            if size in P750W_SIZE_PX:
+                cmd += [f"--font-size={P750W_SIZE_PX[size]}"]
+            cmd += ["--text", text]
             log.info("Running: %s", " ".join(cmd))
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             log.info("P750W print exit=%d stdout=%r stderr=%r",
@@ -263,7 +275,9 @@ def print_p750w():
             return jsonify(error=f"ptouch-print not found at {PTOUCH_PRINT}"), 500
 
     if result.returncode != 0:
-        error_msg = result.stderr.strip() or result.stdout.strip() or f"Exit code {result.returncode}"
+        # ptouch-print writes its "found on USB bus…" banner to stderr and
+        # real errors to stdout, so prefer stdout here.
+        error_msg = result.stdout.strip() or result.stderr.strip() or f"Exit code {result.returncode}"
         log.error("P750W print failed: %s", error_msg)
         return jsonify(error=error_msg), 500
 
@@ -292,8 +306,12 @@ def _trigger_bt_reconnect() -> None:
         log.warning("bt-reconnect trigger failed: %s", e)
 
 
-def _run_p300bt(text: str) -> subprocess.CompletedProcess:
-    cmd = [P300BT_VENV_PYTHON, P300BT_PRINTLABEL, RFCOMM_DEVICE, P300BT_FONT, text]
+def _run_p300bt(text: str, size: str = "") -> subprocess.CompletedProcess:
+    # Optional flags go before the positional COM_PORT / FONT_NAME / TEXT.
+    cmd = [P300BT_VENV_PYTHON, P300BT_PRINTLABEL]
+    if size in P300BT_SIZE_PX:
+        cmd += ["--fixed-font-size", str(P300BT_SIZE_PX[size])]
+    cmd += [RFCOMM_DEVICE, P300BT_FONT, text]
     log.info("Running: %s", " ".join(cmd))
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
     log.info("P300BT print exit=%d stdout=%r stderr=%r",
@@ -305,13 +323,14 @@ def _run_p300bt(text: str) -> subprocess.CompletedProcess:
 def print_p300bt():
     data = request.get_json(silent=True) or {}
     text = data.get("text", "").strip()
+    size = (data.get("size") or "").lower()
     if not text:
         return jsonify(error="No text provided"), 400
 
-    log.info("P300BT print request: %r", text)
+    log.info("P300BT print request: %r (size=%s)", text, size or "auto")
     with lock_p300bt:
         try:
-            result = _run_p300bt(text)
+            result = _run_p300bt(text, size)
 
             # If the first attempt failed with a Bluetooth I/O signature,
             # the RFCOMM bind is stale. Trigger the reconnect watchdog and
@@ -321,7 +340,7 @@ def print_p300bt():
                 log.warning("P300BT looks stale; attempting reconnect + retry")
                 _trigger_bt_reconnect()
                 time.sleep(3)
-                result = _run_p300bt(text)
+                result = _run_p300bt(text, size)
         except subprocess.TimeoutExpired:
             log.error("P300BT print timed out for: %r", text)
             return jsonify(error="Print timed out"), 504

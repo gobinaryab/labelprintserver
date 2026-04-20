@@ -1,6 +1,8 @@
 (() => {
     const PRINTERS = ["p750w", "p300bt"];
     const DEFAULT_PRINTER = "p750w";
+    const SIZES = ["s", "m", "l"];
+    const DEFAULT_SIZE = "m";
     const HEALTH_POLL_MS = 10000;
 
     const textEl = document.getElementById("text");
@@ -8,25 +10,42 @@
     const banner = document.getElementById("banner");
     const details = document.getElementById("details");
     const statusBody = document.getElementById("status-body");
-    const segButtons = document.querySelectorAll(".seg");
+    const printerButtons = document.querySelectorAll(".seg[data-printer]");
+    const sizeButtons = document.querySelectorAll(".size-seg");
 
     let selectedPrinter = localStorage.getItem("printer") || DEFAULT_PRINTER;
     if (!PRINTERS.includes(selectedPrinter)) selectedPrinter = DEFAULT_PRINTER;
 
+    let selectedSize = localStorage.getItem("size") || DEFAULT_SIZE;
+    if (!SIZES.includes(selectedSize)) selectedSize = DEFAULT_SIZE;
+
     function setSelected(printer) {
         selectedPrinter = printer;
         localStorage.setItem("printer", printer);
-        segButtons.forEach(btn => {
+        printerButtons.forEach(btn => {
             btn.classList.toggle("active", btn.dataset.printer === printer);
         });
         // Invalidate the cached status panel when switching printers.
         if (details.open) loadStatus();
     }
 
-    segButtons.forEach(btn => {
+    function setSize(size) {
+        selectedSize = size;
+        localStorage.setItem("size", size);
+        sizeButtons.forEach(btn => {
+            btn.classList.toggle("active", btn.dataset.size === size);
+        });
+    }
+
+    printerButtons.forEach(btn => {
         btn.addEventListener("click", () => setSelected(btn.dataset.printer));
     });
     setSelected(selectedPrinter);
+
+    sizeButtons.forEach(btn => {
+        btn.addEventListener("click", () => setSize(btn.dataset.size));
+    });
+    setSize(selectedSize);
 
     function showBanner(kind, message) {
         banner.textContent = message;
@@ -87,7 +106,7 @@
             const res = await fetch(`/api/print/${selectedPrinter}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ text }),
+                body: JSON.stringify({ text, size: selectedSize }),
             });
             const data = await res.json().catch(() => ({}));
             if (res.ok && data.success) {

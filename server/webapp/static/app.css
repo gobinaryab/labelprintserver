@@ -100,6 +100,40 @@ main {
     color: white;
 }
 
+.size-select {
+    display: flex;
+    align-items: center;
+    background: var(--card);
+    border-radius: 10px;
+    padding: 4px;
+    gap: 4px;
+}
+
+.size-label {
+    padding: 0 10px 0 8px;
+    font-size: 14px;
+    color: var(--muted);
+}
+
+.size-seg {
+    flex: 1;
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    padding: 10px;
+    font-size: 15px;
+    font-weight: 500;
+    border-radius: 8px;
+    cursor: pointer;
+    min-height: 40px;
+}
+
+.size-seg.active {
+    background: var(--accent);
+    color: white;
+}
+
 textarea {
     width: 100%;
     min-height: 140px;

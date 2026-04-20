@@ -36,6 +36,13 @@
 
         <textarea id="text" placeholder="Label text" autocapitalize="sentences" autocorrect="on" spellcheck="true"></textarea>
 
+        <div class="size-select" role="radiogroup" aria-label="Text size">
+            <span class="size-label">Size</span>
+            <button type="button" class="seg size-seg" data-size="s">S</button>
+            <button type="button" class="seg size-seg" data-size="m">M</button>
+            <button type="button" class="seg size-seg" data-size="l">L</button>
+        </div>
+
         <details id="details">
             <summary>Printer status</summary>
             <pre id="status-body">Tap to load…</pre>
